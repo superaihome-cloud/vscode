@@ -4,9 +4,25 @@ This directory contains the protocol version system. Read this before modifying 
 
 ## Overview
 
-The protocol has **living types** (in `sessionState.ts`, `sessionActions.ts`) and **version type snapshots** (in `versions/v1.ts`, etc.). The `versions/versionRegistry.ts` file contains compile-time checks that enforce backwards compatibility between them, plus a runtime map that tracks which action types belong to which version.
+The protocol has **living types** (in `sessionState.ts`, `sessionActions.ts`) and **version type snapshots** (in `versions/v2.ts`, etc.). The `versions/versionRegistry.ts` file contains compile-time checks that enforce backwards compatibility between them, plus a runtime map that tracks which action types belong to which version.
 
 The latest version file is the **tip** — it can be edited. Older version files are frozen.
+
+## Protocol versions
+
+- **v0.2.0 (current).** Introduces the
+  [Changesets](../../../../../../agent-host-protocol/docs/guide/changesets.md)
+  model: `SessionSummary.changesets` (a lightweight catalogue) replaces the
+  v0.1.0 `SessionSummary.diffs` field, and the `session/diffsChanged` action
+  is removed in favour of six `changeset/*` actions
+  (`statusChanged`, `fileSet`, `fileRemoved`, `operationsChanged`, `cleared`,
+  `disposed`). A new `invokeChangesetOperation` command lets clients invoke
+  server-defined verbs against a changeset; v0.2.0 ships the wire types and
+  the dispatch path but does not declare any concrete operations yet.
+  Changeset actions are scoped to an expanded changeset URI
+  (`<sessionUri>/changeset/<id>`); see `node/changesetUri.ts` for the
+  build/parse helpers.
+- **v0.1.0.** Initial release. Removed.
 
 ## Adding optional fields to existing types
 

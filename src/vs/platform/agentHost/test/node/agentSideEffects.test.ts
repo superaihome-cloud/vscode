@@ -2549,7 +2549,7 @@ suite('AgentSideEffects', () => {
 			const diffsEmitted = new Promise<void>(r => { resolveDiffs = r; });
 			disposables.add(localStateManager.onDidEmitEnvelope(e => {
 				envelopes.push(e);
-				if (e.action.type === ActionType.SessionDiffsChanged) {
+				if (e.action.type === ActionType.ChangesetFileSet || e.action.type === ActionType.ChangesetStatusChanged) {
 					resolveDiffs?.();
 				}
 			}));
@@ -2566,14 +2566,19 @@ suite('AgentSideEffects', () => {
 				action: { type: ActionType.SessionTurnComplete, session: sessionUri.toString(), turnId: 'turn-1' },
 			});
 
-			// Wait deterministically for the SessionDiffsChanged envelope rather
-			// than sleeping a fixed amount.
+			// Wait deterministically for at least one changeset envelope to land
+			// (status transition or first file upsert) rather than sleeping a
+			// fixed amount.
 			await diffsEmitted;
 
 			assert.deepStrictEqual(computeCalls, [{ workingDirectory: 'file:///wd', sessionUri: sessionUri.toString(), baseBranch: 'main' }]);
-			const diffsAction = envelopes.map(e => e.action).find(a => a.type === ActionType.SessionDiffsChanged);
-			assert.ok(diffsAction, 'expected a SessionDiffsChanged action');
-			assert.deepStrictEqual((diffsAction as { diffs: unknown }).diffs, gitDiffs);
+			// Each git diff lands as its own `changeset/fileSet` envelope.
+			// Walk the captured stream and reconstruct the file list to
+			// assert it matches the git service output.
+			const fileSets = envelopes
+				.map(e => e.action)
+				.filter(a => a.type === ActionType.ChangesetFileSet) as Array<{ file: { edit: unknown } }>;
+			assert.deepStrictEqual(fileSets.map(a => a.file.edit), gitDiffs);
 		});
 
 		test('falls back to the edit-tracker aggregator when the git service returns undefined', async () => {
@@ -2611,7 +2616,7 @@ suite('AgentSideEffects', () => {
 			const diffsEmitted = new Promise<void>(r => { resolveDiffs = r; });
 			disposables.add(localStateManager.onDidEmitEnvelope(e => {
 				envelopes.push(e);
-				if (e.action.type === ActionType.SessionDiffsChanged) {
+				if (e.action.type === ActionType.ChangesetStatusChanged) {
 					resolveDiffs?.();
 				}
 			}));
@@ -2629,12 +2634,19 @@ suite('AgentSideEffects', () => {
 
 			await diffsEmitted;
 
-			// With no recorded edits, the edit-tracker aggregator returns an empty array — the
-			// important assertion is that we still produced a SessionDiffsChanged envelope, which
-			// proves the fallback path executed without throwing.
-			const diffsAction = envelopes.map(e => e.action).find(a => a.type === ActionType.SessionDiffsChanged);
-			assert.ok(diffsAction, 'expected a SessionDiffsChanged action from the fallback path');
-			assert.deepStrictEqual((diffsAction as { diffs: unknown[] }).diffs, []);
+			// With no recorded edits, the edit-tracker aggregator returns an
+			// empty array — no `changeset/fileSet` envelopes are emitted. The
+			// important assertion is that we still ran the producer through
+			// to a `changeset/statusChanged → ready` envelope, which proves
+			// the fallback path executed without throwing.
+			const fileSets = envelopes
+				.map(e => e.action)
+				.filter(a => a.type === ActionType.ChangesetFileSet);
+			assert.deepStrictEqual(fileSets, []);
+			const statusAction = envelopes
+				.map(e => e.action)
+				.find(a => a.type === ActionType.ChangesetStatusChanged);
+			assert.ok(statusAction, 'expected a changeset/statusChanged envelope from the fallback path');
 		});
 	});
 });

@@ -8,11 +8,11 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
-import { rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ActionType, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
+import { changesetReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { ChangesetState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { StateComponents } from './sessionState.js';
 
@@ -337,6 +337,47 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
+// --- Changeset State Subscription --------------------------------------------
+
+/**
+ * Subscription to a changeset at an expanded changeset URI (e.g.
+ * `<sessionUri>/changeset/session`).
+ *
+ * Server-only mutations — no write-ahead. The subscription self-disposes on
+ * receipt of {@link ActionType.ChangesetDisposed} for its URI by surfacing it
+ * as an error (callers reading {@link IAgentSubscription.value} can detect
+ * the transition); the {@link AgentSubscriptionManager} that owns the
+ * subscription is responsible for releasing the underlying resource.
+ */
+export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetState> {
+
+	private readonly _changesetUri: string;
+
+	constructor(changesetUri: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+		this._changesetUri = changesetUri;
+	}
+
+	protected override _applyReducer(state: ChangesetState, action: StateAction): ChangesetState {
+		return changesetReducer(state, action as ChangesetAction, this._log);
+	}
+
+	protected override _isRelevantAction(action: StateAction): boolean {
+		return isChangesetAction(action) && action.changeset === this._changesetUri;
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		super._reconcile(envelope, isOwnAction);
+		if (envelope.action.type === ActionType.ChangesetDisposed) {
+			// Mirror the spec contract: subscribers see the dispose action,
+			// then the URI becomes unreadable. We surface it as an error so
+			// downstream observables can react; the manager tears down the
+			// underlying refcounted entry on the next `release`.
+			this.setError(new Error(`Changeset disposed: ${this._changesetUri}`));
+		}
+	}
+}
+
 // --- Subscription Manager ----------------------------------------------------
 
 /**
@@ -471,6 +512,8 @@ export class AgentSubscriptionManager extends Disposable {
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Changeset:
+				return new ChangesetStateSubscription(key, this._clientId, this._log);
 			default:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
 		}

@@ -1035,13 +1035,10 @@ export class AgentSideEffects extends Disposable {
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs);
-			// Persist diffs to the session database so they survive restarts.
-			// Persistence still uses the legacy `diffs` metadata key — the DB
-			// schema migration to the new changeset catalogue is intentionally
-			// deferred (see plan).
-			ref.object.setMetadata('diffs', JSON.stringify(diffs)).catch(err => {
-				this._logService.warn('[AgentSideEffects] Failed to persist session diffs', err);
-			});
+			// Persistence of the per-session changeset to the DB is
+			// deferred — the producer recomputes the file list on every
+			// turn anyway, and the legacy `diffs` metadata column is no
+			// longer read on session restore.
 		} catch (err) {
 			this._logService.warn('[AgentSideEffects] Failed to compute session diffs', err);
 			this._stateManager.dispatchServerAction({

@@ -237,7 +237,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return s;
 				}
 				try {
-					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, diffs: true });
+					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true });
 					let updated = s;
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
@@ -1006,7 +1006,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const db = await ref;
 				if (db) {
 					try {
-						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, diffs: true, configValues: true });
+						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, configValues: true });
 						if (m.customTitle) {
 							title = m.customTitle;
 						}

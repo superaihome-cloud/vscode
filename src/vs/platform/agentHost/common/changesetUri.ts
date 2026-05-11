@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { URI } from '../common/state/sessionState.js';
+import type { URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
- * receive a {@link import('../common/state/protocol/state.js').ChangesetState}.
+ * receive a {@link import('./state/protocol/state.js').ChangesetState}.
  *
  * The URI shape is:
  *

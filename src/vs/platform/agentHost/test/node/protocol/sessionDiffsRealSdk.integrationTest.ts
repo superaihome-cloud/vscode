@@ -83,7 +83,7 @@ function resolveGitHubToken(): string {
 		tempDirs.length = 0;
 	});
 
-	test('terminal-driven file edit shows up in summary.diffs (no ToolResultFileEditContent emitted)', async function () {
+	test('terminal-driven file edit shows up in the session changeset (no ToolResultFileEditContent emitted)', async function () {
 		this.timeout(180_000);
 
 		// Initialize a tmp git repo as the working directory.

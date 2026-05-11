@@ -9,11 +9,46 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { ChangesetSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+
+/**
+ * Stable id of the session-wide changeset published by the agent host
+ * (mirrors `SESSION_CHANGESET_ID` in `agentHostDiffs.ts`).
+ */
+const SESSION_CHANGESET_ID = 'session';
+
+/**
+ * Picks the session-wide entry out of the catalogue carried on
+ * `SessionSummary.changesets`. The catalogue is small and lightweight —
+ * it only carries aggregate counts, not the per-file URIs needed to
+ * render the changes view; for that, a consumer subscribes to the
+ * expanded changeset URI.
+ */
+function pickSessionChangeset(catalogue: readonly ChangesetSummary[] | undefined): ChangesetSummary | undefined {
+	return catalogue?.find(c => c.id === SESSION_CHANGESET_ID);
+}
+
+/**
+ * Maps the catalogue counts onto the aggregate-counts shape supported by
+ * {@link IChatSessionItem.changes}. Returns `undefined` when the
+ * catalogue entry is missing or carries no counts so the sidebar
+ * doesn't render an empty chip.
+ */
+function changesetCountsToChanges(summary: ChangesetSummary | undefined): IChatSessionItem['changes'] {
+	if (!summary || summary.files === undefined || summary.files === 0) {
+		return undefined;
+	}
+	return {
+		files: summary.files,
+		insertions: summary.additions ?? 0,
+		deletions: summary.deletions ?? 0,
+	};
+}
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
 	if (status !== undefined && (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded) {
@@ -193,6 +228,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					workingDirectory: s.workingDirectory?.toString(),
+					changesets: s.changesets ? [...s.changesets] : undefined,
 				});
 				return this._makeItem(rawId, {
 					title: s.summary,
@@ -201,6 +237,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					workingDirectory: s.workingDirectory,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
+					changesets: s.changesets,
 				});
 			});
 			this._cacheValid = true;
@@ -220,6 +257,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			workingDirectory: workingDir,
 			createdAt: summary.createdAt,
 			modifiedAt: summary.modifiedAt,
+			changesets: summary.changesets,
 		});
 	}
 
@@ -230,6 +268,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
+		changesets?: readonly ChangesetSummary[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
@@ -246,13 +285,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				lastRequestStarted: opts.modifiedAt,
 				lastRequestEnded: opts.modifiedAt,
 			},
-			// File-change chips for the sidebar list are populated by a
-			// separate path that subscribes to the session changeset URI;
-			// the catalogue carried on `SessionSummary.changesets` only
-			// has aggregate counts, not the per-file URIs the UI needs to
-			// render. Leaving `changes` undefined here matches the
-			// "no subscription yet" baseline; a follow-up will subscribe
-			// the list controller to populate it on demand.
+			// Sidebar chip data: aggregate `{ files, insertions, deletions }`
+			// from the catalogue. Per-file detail (used by the session detail
+			// "Changes" view) requires subscribing to the changeset URI;
+			// `BaseAgentHostSessionsProvider._ensureChangesetSubscription`
+			// owns that path.
+			changes: changesetCountsToChanges(pickSessionChangeset(opts.changesets)),
 		};
 	}
 

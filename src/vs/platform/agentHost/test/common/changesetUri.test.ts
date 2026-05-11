@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildChangesetUri, isChangesetUri, parseChangesetUri } from '../../node/changesetUri.js';
+import { buildChangesetUri, isChangesetUri, parseChangesetUri } from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
 

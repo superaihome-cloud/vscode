@@ -14,7 +14,7 @@ import { rootReducer, sessionReducer, changesetReducer } from '../common/state/s
 import { createRootState, createSessionState, SessionLifecycle, type ChangesetState, type ChangesetSummary, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
 import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { buildChangesetUri, parseChangesetUri } from './changesetUri.js';
+import { buildChangesetUri, parseChangesetUri } from '../common/changesetUri.js';
 
 /**
  * Server-side state manager for the sessions process protocol.

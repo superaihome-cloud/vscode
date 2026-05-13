@@ -15,6 +15,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 /**
  * Stable id of the session-wide changeset published by the agent host

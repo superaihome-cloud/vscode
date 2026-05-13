@@ -42,6 +42,43 @@ function toNodePlatformArch(platform: string, arch: string): { nodePlatform: str
 }
 
 /**
+ * The platform-arch directories present in @vscode/ripgrep-universal.
+ */
+const ripgrepUniversalPlatforms = [
+	'darwin-arm64', 'darwin-x64',
+	'linux-arm64', 'linux-armhf', 'linux-x64',
+	'linux-alpine-arm64', 'linux-alpine-x64',
+	'win32-arm64', 'win32-x64',
+];
+
+/**
+ * Converts VS Code build platform/arch to the @vscode/ripgrep-universal
+ * platform-arch directory name.
+ */
+function toRipgrepPlatformArch(platform: string, arch: string): string {
+	if (platform === 'alpine') {
+		return `linux-alpine-${arch === 'armhf' ? 'arm64' : arch}`;
+	}
+	if (arch === 'armhf') {
+		return `${platform}-armhf`;
+	}
+	return `${platform}-${arch}`;
+}
+
+/**
+ * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
+ * for architectures other than the build target.
+ */
+export function getRipgrepExcludeFilter(platform: string, arch: string): string[] {
+	const target = toRipgrepPlatformArch(platform, arch);
+	const nonTargetPlatforms = ripgrepUniversalPlatforms.filter(p => p !== target);
+
+	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@vscode/ripgrep-universal/bin/${p}/**`);
+
+	return ['**', ...excludes];
+}
+
+/**
  * Returns a glob filter that strips @github/copilot platform packages
  * for architectures other than the build target.
  *
@@ -90,7 +127,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
 
-	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep', 'bin');
+	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', platformArch);
 	if (!fs.existsSync(ripgrepSource)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ripgrep source not found at ${ripgrepSource}`);
 	}

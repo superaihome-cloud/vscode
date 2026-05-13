@@ -2503,7 +2503,45 @@ suite('AgentSideEffects', () => {
 
 	// ---- Session diff computation ----------------------------------------------
 
-	suite('session diff computation', () => {
+		test('publishSessionChangesetCatalogue adds the default catalogue entry on summary.changesets', () => {
+			const sessionStr = sessionUri.toString();
+			setupSession();
+
+			// No catalogue before the eager publish.
+			assert.strictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, undefined);
+
+			sideEffects.publishSessionChangesetCatalogue(sessionStr);
+
+			const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
+			assert.deepStrictEqual(changesets, [
+				{
+					id: 'session',
+					label: 'Session Changes',
+					uriTemplate: `${sessionStr}/changeset/session`,
+				},
+			]);
+
+			// The changeset URI is now registered and subscribable with a
+			// `computing` snapshot so a client that subscribes before the
+			// first diff compute sees a valid state.
+			const snapshot = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
+			assert.ok(snapshot, 'expected the changeset URI to be subscribable');
+			assert.strictEqual((snapshot.state as { status: string }).status, 'computing');
+		});
+
+		test('publishSessionChangesetCatalogue is idempotent across repeated calls', () => {
+			const sessionStr = sessionUri.toString();
+			setupSession();
+
+			sideEffects.publishSessionChangesetCatalogue(sessionStr);
+			sideEffects.publishSessionChangesetCatalogue(sessionStr);
+			sideEffects.publishSessionChangesetCatalogue(sessionStr);
+
+			const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
+			assert.strictEqual(changesets?.length, 1, 'expected exactly one default catalogue entry');
+		});
+
+		suite('session diff computation', () => {
 
 		test('git-driven path is preferred when a git service is provided and the working dir is a git work tree', async () => {
 			const sessionDb = new SessionDatabase(':memory:');

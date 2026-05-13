@@ -968,6 +968,28 @@ export class AgentSideEffects extends Disposable {
 	private static readonly _SESSION_CHANGESET_LABEL = 'Session Changes';
 
 	/**
+	 * Eagerly publishes the default `session` changeset on `summary.changesets`
+	 * for a top-level session. Called at session-ready and session-restore time
+	 * so that:
+	 * - `listSessions` and {@link NotificationType.SessionSummaryChanged}
+	 *   surface the catalogue entry from the moment a client first sees the
+	 *   session — clients never have to wait for a turn to complete to render
+	 *   the diff chip or to subscribe to the changeset URI.
+	 * - The changeset URI is registered (with `status: computing`) so an
+	 *   immediate client subscription succeeds and receives the
+	 *   {@link ChangesetStatus.Ready} transition once the first compute runs.
+	 *
+	 * Idempotent: safe to call multiple times for the same session and safe
+	 * to call alongside the lazy publish path inside
+	 * {@link _doComputeSessionDiffs}. Subagent sessions are never given a
+	 * default catalogue entry — the diff producer doesn't run for them.
+	 */
+	publishSessionChangesetCatalogue(session: ProtocolURI): void {
+		const changesetUri = this._stateManager.registerChangeset(session, AgentSideEffects._SESSION_CHANGESET_ID);
+		this._ensureSessionChangesetCatalogue(session, changesetUri);
+	}
+
+	/**
 	 * Schedules a debounced diff computation for a session. If a timer is
 	 * already pending for this session, it is replaced (restarting the delay).
 	 * The computation fires after {@link _DIFF_DEBOUNCE_MS} unless cancelled

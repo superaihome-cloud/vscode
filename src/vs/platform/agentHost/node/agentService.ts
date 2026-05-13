@@ -269,7 +269,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder.
+		// initial empty placeholder. The default `session` changeset
+		// catalogue entry lives on `state.summary.changesets` (published
+		// at session-ready/restore time and refreshed after each compute
+		// pass) and must be surfaced here so a fresh `listSessions` call
+		// returns the same catalogue subscribers see via
+		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
@@ -279,6 +284,7 @@ export class AgentService extends Disposable implements IAgentService {
 					status: liveState.summary.status,
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
+					changesets: liveState.summary.changesets ?? s.changesets,
 				};
 			}
 			return s;
@@ -386,6 +392,12 @@ export class AgentService extends Disposable implements IAgentService {
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
+			// Publish the default `session` changeset catalogue entry on
+			// `summary.changesets` immediately so clients see it without
+			// having to wait for the first turn to complete. Idempotent —
+			// the diff producer also publishes it on every compute pass.
+			this._sideEffects.publishSessionChangesetCatalogue(session.toString());
+
 			// Lazily compute git state for sessions with a working directory;
 			// attaches under `state._meta.git` once ready.
 			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
@@ -448,6 +460,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionKey });
+		// Publish the default `session` changeset catalogue entry on
+		// `summary.changesets` immediately so newly-materialized sessions
+		// expose the same catalogue entry as eagerly-created ones.
+		this._sideEffects.publishSessionChangesetCatalogue(sessionKey);
 		this._attachGitState(e.session, e.workingDirectory);
 	}
 
@@ -1058,6 +1074,12 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
+
+		// Publish the default `session` changeset catalogue entry on the
+		// restored session's `summary.changesets` immediately so the chip
+		// shows up alongside the session — clients should not have to wait
+		// for the first compute pass after restore. Idempotent.
+		this._sideEffects.publishSessionChangesetCatalogue(sessionStr);
 
 		// Restore persisted `_meta` (e.g. git state) onto the new session
 		// state. This dispatches a SessionMetaChanged action.
